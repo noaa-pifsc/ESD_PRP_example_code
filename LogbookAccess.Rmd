@@ -1,0 +1,116 @@
+---
+title: "LogbookAccess"
+output: html_document
+---
+
+# Purpose
+This script will let you access and download logbook data from PIFSC's Oracle
+database (which now lives in the cloud).  This code comes from materials 
+provided by Jen Raynor and Johanna Wren (thank you!!).
+
+# Before you start
+You need an Oracle username and password to access this server.  If you need to 
+change your Oracle password, you can do so [here](https://sites.google.com/noaa.gov/pifsc-intranet/operations-management-and-information-division/its-branch/information-technology-services-its/passwords/oracle-password) (requires @noaa.gov login).
+
+You also need permission to access logbook data for this script to work 
+properly.  Ashley.Tomita@noaa.gov can help you with data access permission.
+
+Finally, installing the ROracle package on some operating systems in not trivial.
+If you run into trouble, ask for help from PRP staff (try using our Google
+space if you're not sure who to ask).
+
+# Set up the workspace
+Install needed packages
+```{r}
+library(tidyverse, quietly = TRUE) # handy for working with data
+library(ROracle) # to talk to the Oracle database
+library(here) # for file path management that works on any computer
+```
+
+# Access the data
+This code chunk opens a dialogue box for your username and password so that you 
+don't have to write this sensitive information into your code.
+```{r}
+# Establish connection with the database
+con <- dbConnect(dbDriver("Oracle"),
+                 username = rstudioapi::askForPassword("Oracle user name"),
+                 password = rstudioapi::askForPassword("Oracle password"), 
+                 dbname = "PIC")
+```
+
+Now that you're connected to the database, navigate to the logbook data:
+```{r}
+# Name schema to use
+shma_log <- 'LLDS'
+
+# Look at what views are available to you in the schema
+table_log <- dbListTables(con, schema=shma_log)
+table_log
+```
+
+What you see here depends on the data access you've been granted.  In general,
+the logbook data are contained in two views that are updated annually:
+`LLDS_HDR_YYYY0315HAC` has set-level information; each row is a set  
+`LLDS_DETAIL_YYYY0315HAC`: has fish-level information; each row is a fish
+Logbook data are released annually, with `YYYY` noting the year of release.
+
+You can see what's available in each view by looking at the column names:
+```{r}
+# Define table name
+tname_hdr <- paste(tolower(shma_log),table_log[grep(paste0('LLDS_HDR_2025'), table_log)], sep='.')  
+tname_detail <- paste(tolower(shma_log),table_log[grep(paste0('LLDS_DETAIL_2025'), table_log)], sep='.')
+
+# Look at column names available in the table
+tableInfo_hdr <- dbListFields(con, schema=shma_log, name=table_log[grep('LLDS_HDR_2025', table_log)])
+tableInfo_hdr
+
+tableInfo_detail <- dbListFields(con, schema=shma_log, name=table_log[grep('LLDS_DETAIL_2025', table_log)])
+tableInfo_detail
+```
+Use this information to help you decide what to download and write your query.
+
+# Download the data
+Some small queries are given below as examples.  You can tailor them to meet 
+your project needs.  Data can be saved as R data sets or csvs, but the latter 
+are larger files.
+```{r}
+# Query the database - HDR data
+res <- dbSendQuery(con, paste("SELECT TRIPNUM, RSCH_EXPMTL_CODE, PERMITNUM, BAIT, HOOKSSET, MINHKSFLT, MAXHKSFLT, BHLATDEG, BHLATMIN, BHLONGDEG, BHLONGMIN, SERIALNUM, FLEET, BH_YR, BH_MON",
+                              "FROM", tname_hdr,
+                              "WHERE BH_YR = '2024' AND FLEET = 'HI'"))
+
+logbookHDR <- dbFetch(res)
+
+# Save data using the option that fits your needs
+saveRDS(object = logbookHDR, file = here("Your", "file", "path", "LogbookHDR.rds"))
+write_csv(logbookHDR, file = here("Your", "file", "path", "LogbookHDR.csv"))
+
+# Clear query results 
+dbClearResult(res)
+
+
+# Query the database - DETAIL data
+res <- dbSendQuery(con, paste("SELECT HDR_TRIPNUM, HDR_SERIALNUM, ENGLISH_NAME, SPECIES, NUMFINNED, NUMKEPT, NUMRELEASED, FLEET, BH_YR, BH_MON, PERMITNUM, HOOKSSET, MAXHKSFLT, RSCH_EXPMTL_CODE",
+                              "FROM", tname_detail,
+                              "WHERE BH_YR = '2024' AND FLEET = 'HI'"))
+
+logbookDETAIL <- dbFetch(res)
+
+# Save data using the option that fits your needs
+saveRDS(object = logbookDETAIL, file = here("Your", "file", "path", "LogbookDETAIL.rds"))
+write_csv(logbookDETAIL, file = here("Your", "file", "path", "LogbookDETAIL.csv"))
+
+# Clear query results 
+dbClearResult(res)
+```
+
+# Close your connection
+Close your connection to the database
+```{r}
+dbDisconnect(con)
+```
+
+
+
+
+
