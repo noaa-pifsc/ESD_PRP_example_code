@@ -7,4 +7,6 @@ pain.  This script addresses that.  Run it before the update to record which
 versions of which packages live where on your computer.  Run it after the update
 to reinstall them.  
 
-**LogbookAccess.Rmd:** Walks through the steps for accessing logbook data with R.
+**LogbookAccess.Rmd:** Walks through the steps for accessing logbook data with R.  
+
+**ObserverAccess.Rmd:** Walks through the steps for accessing observer data with R.
