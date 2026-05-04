@@ -1,0 +1,126 @@
+---
+title: "ObserverAccess"
+output: html_document
+---
+
+# Purpose
+This script will let you access and download observer data from PIRO's LOTUS
+database.  This code comes from materials provided by Jen Raynor and Johanna 
+Wren (thank you!!).
+
+# Before you start
+You need your network username and password to access this server, and your password
+cannot contain special characters.  If you need to change your network password,
+submit a PIFSC ITS Help Desk request.
+
+You also need permission to access observer data for this script to work 
+properly.  Ashley.Tomita@noaa.gov can help you with data access permission.
+
+Finally, there are some drivers you need ITS to install on your computer for 
+this script to work, and that aspect of the code isn't covered in this script.
+If you run into trouble, ask for help from PRP staff (try using our Google
+space if you're not sure who to ask).
+
+# Set up the workspace
+Install needed packages
+```{r}
+library(tidyverse, quietly = TRUE) # handy for working with data
+library(RODBC) # for database connection
+library(here) # for file path management that works on any computer
+```
+
+# Access the data
+This code chunk opens a dialogue box for your username and password so that you 
+don't have to write this sensitive information into your code.  Connect using 
+your network username and password.  You'll need to put `NMFS\` before your 
+username.
+```{r}
+# Establish connection with the database
+ch <- odbcConnect(dsn = "SQLPROD",
+                        uid = rstudioapi::askForPassword("Network user name"),
+                        pwd = rstudioapi::askForPassword("Network password"),
+                        believeNRows = FALSE)
+```
+
+Now that you're connected to the database, navigate to the observer data:
+```{r}
+# Identify the schema
+shma_obs <- 'NEWOBS' # Schema for the observer data
+
+# Identify the tables and views
+table_obs <- sqlTables(ch, tableType = 'table', schema = shma_obs)
+table_obs
+
+view_obs <- sqlTables(ch, tableType = 'view', schema = shma_obs)
+view_obs
+```
+What you see here depends on the data access you've been granted.  It's likely
+**a lot** to sort through.  
+
+# Figure out what you need
+The tables and views provide metadata and data.  You'll probably have to do some 
+trial and error to figure out exactly what you need.  The good news is, they're
+all built on the same underlying data so you're likely not going to get 
+drastically different results by picking the "wrong" table/view.
+
+There are a few examples below to give you a sense of what's available.  You 
+can modify them to suit your project needs.
+```{r}
+# Define table/view names, noting that the reference numbers depend on access granted
+# You may need to change the row number of TABLE_NAME
+tname_obs_bait <- paste(tolower(shma_obs), table_obs$TABLE_NAME[19], sep = '.') # LOP_BAIT 
+tname_obs_leadermat <- paste(tolower(shma_obs), table_obs$TABLE_NAME[69], sep = '.') # LOP_LDR_MAT
+vname_obs_speciescodes <- paste(tolower(shma_obs), view_obs$TABLE_NAME[194], sep = ".") # OLD_AND_NEW_SPEC_CODES_V
+tname_obs_catch <- paste(tolower(shma_obs), table_obs$TABLE_NAME[7], sep = '.') # CATCH
+
+# View column names
+# Again, you may need to change the row number of the TABLE_NAME
+sqlColumns(ch, sqtable = table_obs$TABLE_NAME[19], schema = shma_obs)$COLUMN_NAME
+sqlColumns(ch, sqtable = table_obs$TABLE_NAME[69], schema = shma_obs)$COLUMN_NAME
+sqlColumns(ch, sqtable = view_obs$TABLE_NAME[194], schema = shma_obs)$COLUMN_NAME
+sqlColumns(ch, sqtable = table_obs$TABLE_NAME[7], schema = shma_obs)$COLUMN_NAME
+```
+
+# Download the data
+Some small queries are given below as examples.  You can tailor them to meet 
+your project needs.  Data can be saved as R data sets or csvs, but the latter 
+are larger files.
+```{r}
+# Query the database
+ObsBait <- sqlQuery(ch, paste("SELECT *",
+                                    "FROM", tname_obs_bait))
+ObsLeaderMat <- sqlQuery(ch, paste("SELECT *",
+                                    "FROM", tname_obs_leadermat))
+ObsSpeciesCodes <- sqlQuery(ch, paste("SELECT *",
+                                         "FROM", vname_obs_speciescodes))
+ObsCatch <- sqlQuery(ch, paste("SELECT T_TRIP_NUM, S_SET_NUM, SPECIES_CODE, KEPT_RETURN_ID, HK_NUM, FLT_NUM",
+                                "FROM", tname_obs_catch,
+                                "WHERE T_TRIP_NUM >= 'LL8000'" ))
+
+# Save data using the option that fits your needs
+saveRDS(object = ObsBait, file = here("Your", "file", "path", "ObserverBaitTypes.rds"))
+write_csv(ObsBait, file = here("Your", "file", "path", "ObserverBaitTypes.csv"))
+
+saveRDS(object = ObsLeaderMat, file = here("Your", "file", "path", "ObserverLeaderMaterials.rds"))
+write_csv(ObsLeaderMat, file = here("Your", "file", "path", "ObserverLeaderMaterials.csv"))
+
+saveRDS(object = ObsSpeciesCodes, file = here("Your", "file", "path", "ObserverSpeciesCodes.rds"))
+write_csv(ObsSpeciesCodes, file = here("Your", "file", "path", "ObserverSpeciesCodes.csv"))
+
+saveRDS(object = ObsCatch, file = here("Your", "file", "path", "Observer_Catch.rds"))
+write_csv(object = ObsCatch, file = here("Your", "file", "path", "Observer_Catch.csv"))
+```
+
+# Close your connection
+Close your connection to the database
+```{r}
+odbcClose(ch)
+```
+
+
+
+
+
+
+
+
